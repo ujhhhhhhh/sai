@@ -12,7 +12,7 @@ async def pp(prompt):
 
   return text
 
-@app.route('/proc', methods=['GET'])
+@app.route('/', methods=['GET'])
 def handle_request():
     prompt = request.args.get('prompt')
     if not prompt:
