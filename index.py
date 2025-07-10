@@ -17,7 +17,7 @@ def handle_request():
     prompt = request.args.get('prompt')
     if not prompt:
         return Response('Missing "prompt" parameter', status=400, mimetype='text/plain')
-    response = asy.run((pp(prompt))
+    response = asy.run(pp(prompt))
     return Response(response, mimetype='text/plain')
 
 if __name__ == '__main__':
