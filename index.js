@@ -1,4 +1,3 @@
-// index.js
 import { createClient } from "@supabase/supabase-js";
 
 // Supabase client
@@ -11,10 +10,15 @@ const supabase = createClient(
 const requests = new Map();
 
 export default async function handler(req, res) {
+  // Only allow POST
   if (req.method !== "POST") {
-    return res.status(405).send("Method Not Allowed");
+    res.statusCode = 405;
+    res.setHeader("Content-Type", "text/plain");
+    res.end("Method Not Allowed");
+    return;
   }
 
+  // Identify IP
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
   const now = Date.now();
 
@@ -27,26 +31,44 @@ export default async function handler(req, res) {
 
   const history = requests.get(ip);
   if (history.length >= 10) {
-    return res.status(429).send("Too many requests, try again later.");
+    res.statusCode = 429;
+    res.setHeader("Content-Type", "text/plain");
+    res.end("Too many requests, try again later.");
+    return;
   }
 
   history.push(now);
 
-  const text = req.body;
-  if (!text || Buffer.byteLength(text, "utf8") > 1200) {
-    return res.status(400).send("Text exceeds 1.2KB limit or is empty.");
-  }
+  // Collect body
+  let body = "";
+  req.on("data", chunk => {
+    body += chunk;
+  });
 
-  const filename = `entry_${Date.now()}.txt`;
+  req.on("end", async () => {
+    if (!body || Buffer.byteLength(body, "utf8") > 1200) {
+      res.statusCode = 400;
+      res.setHeader("Content-Type", "text/plain");
+      res.end("Text exceeds 1.2KB limit or is empty.");
+      return;
+    }
 
-  const { error } = await supabase.storage
-    .from("texts")
-    .upload(filename, text, { contentType: "text/plain" });
+    const filename = `entry_${Date.now()}.txt`;
 
-  if (error) {
-    console.error(error);
-    return res.status(500).send("Error uploading to storage");
-  }
+    const { error } = await supabase.storage
+      .from("texts")
+      .upload(filename, body, { contentType: "text/plain" });
 
-  return res.status(200).send(`Stored as ${filename}`);
+    if (error) {
+      console.error(error);
+      res.statusCode = 500;
+      res.setHeader("Content-Type", "text/plain");
+      res.end("Error uploading to storage");
+      return;
+    }
+
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "text/plain");
+    res.end(`Stored as ${filename}`);
+  });
 }
